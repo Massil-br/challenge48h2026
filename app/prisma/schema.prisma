@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Données brutes ingérées — chaque ligne CSV est stockée en JSON, dédupliquée via hash SHA-256
+model RawData {
+  id        String   @id @default(cuid())
+  hash      String   @unique
+  raw       Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("raw_data")
+}
+
+/// Résultats agrégés par commune — scores, classements et indicateurs issus du pipeline data
+model TransformedData {
+  id                         String   @id @default(cuid())
+  codeInsee                  String   @unique @map("code_insee")
+  nom                        String
+  depCode                    String   @map("dep_code")
+  depNom                     String   @map("dep_nom")
+  regNom                     String   @map("reg_nom")
+  codePostal                 String?  @map("code_postal")
+  population                 Int
+  densite                    Float
+  latitude                   Float
+  longitude                  Float
+  scorePotentiel             Float    @map("score_potentiel")
+  rang                       Int
+  nbCoproprietes             Float    @map("nb_coproprietes")
+  totalLotsStationnement     Float    @map("total_lots_stationnement")
+  tauxMotorisation           Float    @map("taux_motorisation")
+  partCollectif              Float    @map("part_collectif")
+  tauxVoitureSansGarage      Float    @map("taux_voiture_sans_garage")
+  indiceTensionStationnement Float    @map("indice_tension_stationnement")
+  densiteOpportunite         Float    @map("densite_opportunite")
+  grilleTexte                String?  @map("grille_densite_texte")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
+
+  @@map("transformed_data")
+}
