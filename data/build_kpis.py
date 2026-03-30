@@ -30,6 +30,18 @@ rnic = pd.read_csv(f"{CLEANED}/rnic.csv", dtype={"code_commune": str})
 dvf = pd.read_csv(f"{CLEANED}/dvf.csv", dtype={"code_commune": str})
 stationnement = pd.read_csv(f"{CLEANED}/stationnement.csv", dtype={"code_commune": str})
 
+# Sources bonus (chargement conditionnel)
+zonage_abc = None
+irve = None
+parkings_metro = None
+
+if os.path.exists(f"{CLEANED}/zonage_abc.csv"):
+    zonage_abc = pd.read_csv(f"{CLEANED}/zonage_abc.csv", dtype={"code_commune": str})
+if os.path.exists(f"{CLEANED}/irve.csv"):
+    irve = pd.read_csv(f"{CLEANED}/irve.csv", dtype={"code_commune": str})
+if os.path.exists(f"{CLEANED}/parkings_metropoles.csv"):
+    parkings_metro = pd.read_csv(f"{CLEANED}/parkings_metropoles.csv", dtype={"code_commune": str})
+
 print(f"  Communes (base)     : {len(communes)}")
 print(f"  Motorisation        : {len(motorisation)}")
 print(f"  Logements           : {len(logements)}")
@@ -37,6 +49,9 @@ print(f"  Revenus             : {len(revenus)}")
 print(f"  RNIC                : {len(rnic)}")
 print(f"  DVF                 : {len(dvf)}")
 print(f"  Stationnement       : {len(stationnement)}")
+print(f"  [BONUS] Zonage ABC  : {len(zonage_abc) if zonage_abc is not None else 'non disponible'}")
+print(f"  [BONUS] IRVE        : {len(irve) if irve is not None else 'non disponible'}")
+print(f"  [BONUS] Parkings metro: {len(parkings_metro) if parkings_metro is not None else 'non disponible'}")
 
 # Jointure progressive
 df = communes.copy()
@@ -54,20 +69,44 @@ df = df.merge(dvf, left_on="code_insee", right_on="code_commune", how="left").dr
 
 df = df.merge(stationnement, left_on="code_insee", right_on="code_commune", how="left").drop(columns=["code_commune"])
 
+# Jointure des sources bonus
+if zonage_abc is not None:
+    df = df.merge(zonage_abc, left_on="code_insee", right_on="code_commune", how="left").drop(columns=["code_commune"])
+
+if irve is not None:
+    df = df.merge(irve, left_on="code_insee", right_on="code_commune", how="left").drop(columns=["code_commune"])
+
+if parkings_metro is not None:
+    df = df.merge(parkings_metro, left_on="code_insee", right_on="code_commune", how="left").drop(columns=["code_commune"])
+    # Enrichir le stationnement public avec les données métropoles
+    # Si une commune a des données métropoles mais pas BNLS, utiliser les données métropoles
+    if "nb_places_total" in df.columns and "nb_places_metro" in df.columns:
+        df["nb_places_total_enrichi"] = df["nb_places_total"].fillna(0) + df["nb_places_metro"].fillna(0)
+        df["nb_parkings_publics_enrichi"] = df["nb_parkings_publics"].fillna(0) + df["nb_parkings_metro"].fillna(0)
+
 print(f"\n  Table jointe : {len(df)} lignes x {len(df.columns)} colonnes")
 
 # Vérifier les taux de jointure
-for col, label in [
+join_checks = [
     ("taux_motorisation", "Motorisation"),
     ("total_logements", "Logements"),
     ("revenu_median", "Revenus"),
     ("nb_coproprietes", "RNIC"),
     ("nb_ventes_total", "DVF"),
     ("nb_parkings_publics", "Stationnement"),
-]:
-    matched = df[col].notna().sum()
-    pct = matched / len(df) * 100
-    print(f"  {label:20s}: {matched:6d} communes matchées ({pct:.1f}%)")
+]
+if zonage_abc is not None:
+    join_checks.append(("tension_immobiliere", "[BONUS] Zonage ABC"))
+if irve is not None:
+    join_checks.append(("nb_stations_irve", "[BONUS] IRVE"))
+if parkings_metro is not None:
+    join_checks.append(("nb_places_metro", "[BONUS] Parkings metro"))
+
+for col, label in join_checks:
+    if col in df.columns:
+        matched = df[col].notna().sum()
+        pct = matched / len(df) * 100
+        print(f"  {label:20s}: {matched:6d} communes matchées ({pct:.1f}%)")
 
 
 # =============================================================================
@@ -125,6 +164,17 @@ indicators = [
     "ratio_parking_prive_vs_public", "taux_voiture_sans_garage",
     "lots_hab_par_copro", "dependances_dvf_pour_1000_hab", "copro_par_km2"
 ]
+
+# Indicateurs bonus
+if "nb_stations_irve" in df.columns:
+    df["irve_pour_1000_hab"] = (
+        df["nb_stations_irve"] / df["population"] * 1000
+    ).round(2)
+    indicators.append("irve_pour_1000_hab")
+
+if "tension_immobiliere" in df.columns:
+    indicators.append("tension_immobiliere")
+
 for ind in indicators:
     valid = df[ind].notna().sum()
     mean = df[ind].mean()
@@ -158,7 +208,7 @@ def normalize(series):
 print("\n  KPI 1 - Score de potentiel")
 print("  " + "-" * 40)
 
-# Composantes du score
+# Composantes du score (7 facteurs de base)
 # 1. Densité de copropriétés (nb copro / km2)
 df_score["score_densite_copro"] = normalize(df_score["copro_par_km2"])
 
@@ -180,23 +230,81 @@ df_score["score_lots_parking"] = normalize(df_score["lots_parking_pour_1000_hab"
 # 7. Part des copro qui ont du parking (= infrastructure existante partageable)
 df_score["score_copro_avec_parking"] = normalize(df_score["part_copro_avec_parking"])
 
-# Pondérations
-weights = {
-    "score_densite_copro": 0.20,       # Concentration de cibles
-    "score_motorisation": 0.10,         # Demande de stationnement
-    "score_collectif": 0.15,            # Parc adapté (copropriétés)
-    "score_densite_pop": 0.10,          # Tension urbaine
-    "score_sans_garage": 0.20,          # Demande latente (voiture mais pas de garage)
-    "score_lots_parking": 0.15,         # Offre partageable existante
-    "score_copro_avec_parking": 0.10,   # Infrastructure parking en copro
-}
+# --- BONUS : Facteurs complémentaires ---
+has_zonage = "tension_immobiliere" in df_score.columns and df_score["tension_immobiliere"].notna().any()
+has_irve = "irve_pour_1000_hab" in df_score.columns and df_score["irve_pour_1000_hab"].notna().any()
+
+if has_zonage:
+    # 8. Tension immobilière (zonage ABC : A bis=5, A=4, B1=3, B2=2, C=1)
+    # Zones tendues = forte demande de logement = forte demande de parking
+    df_score["score_tension_immo"] = normalize(df_score["tension_immobiliere"].fillna(1))
+    print("  [BONUS] Score tension immobilière (zonage ABC) ajouté")
+
+if has_irve:
+    # 9. Infrastructure de recharge VE (proxy pour investissement mobilité/parking)
+    # Communes avec beaucoup de bornes = infrastructure parking moderne
+    df_score["score_infra_recharge"] = normalize(df_score["irve_pour_1000_hab"].fillna(0))
+    print("  [BONUS] Score infrastructure recharge (IRVE) ajouté")
+
+# Pondérations ajustées selon les sources bonus disponibles
+if has_zonage and has_irve:
+    # 9 facteurs : on redistribue les poids pour intégrer les 2 bonus
+    weights = {
+        "score_densite_copro": 0.17,       # Concentration de cibles
+        "score_sans_garage": 0.17,          # Demande latente (voiture mais pas de garage)
+        "score_collectif": 0.12,            # Parc adapté (copropriétés)
+        "score_lots_parking": 0.12,         # Offre partageable existante
+        "score_tension_immo": 0.10,         # [BONUS] Tension du marché immobilier
+        "score_motorisation": 0.08,         # Demande de stationnement
+        "score_densite_pop": 0.08,          # Tension urbaine
+        "score_copro_avec_parking": 0.08,   # Infrastructure parking en copro
+        "score_infra_recharge": 0.08,       # [BONUS] Infra recharge VE
+    }
+elif has_zonage:
+    weights = {
+        "score_densite_copro": 0.18,
+        "score_sans_garage": 0.18,
+        "score_collectif": 0.13,
+        "score_lots_parking": 0.13,
+        "score_tension_immo": 0.10,
+        "score_motorisation": 0.08,
+        "score_densite_pop": 0.08,
+        "score_copro_avec_parking": 0.08,
+        "score_infra_recharge": 0.04,
+    }
+elif has_irve:
+    weights = {
+        "score_densite_copro": 0.18,
+        "score_sans_garage": 0.18,
+        "score_collectif": 0.13,
+        "score_lots_parking": 0.13,
+        "score_motorisation": 0.09,
+        "score_densite_pop": 0.09,
+        "score_copro_avec_parking": 0.09,
+        "score_infra_recharge": 0.07,
+    }
+else:
+    # Pas de sources bonus : pondérations originales
+    weights = {
+        "score_densite_copro": 0.20,
+        "score_motorisation": 0.10,
+        "score_collectif": 0.15,
+        "score_densite_pop": 0.10,
+        "score_sans_garage": 0.20,
+        "score_lots_parking": 0.15,
+        "score_copro_avec_parking": 0.10,
+    }
 
 df_score["score_potentiel"] = sum(
     df_score[col].fillna(0) * w for col, w in weights.items()
 ).round(2)
 
-print(f"  Pondérations : {weights}")
-print(f"  Score moyen   : {df_score['score_potentiel'].mean():.1f}")
+print(f"\n  Pondérations ({len(weights)} facteurs, total = {sum(weights.values()):.2f}) :")
+for col, w in weights.items():
+    label = col.replace("score_", "")
+    bonus = " [BONUS]" if "tension" in col or "recharge" in col else ""
+    print(f"    {label:25s}: {w:.0%}{bonus}")
+print(f"\n  Score moyen   : {df_score['score_potentiel'].mean():.1f}")
 print(f"  Score médian  : {df_score['score_potentiel'].median():.1f}")
 print(f"  Score max     : {df_score['score_potentiel'].max():.1f}")
 
