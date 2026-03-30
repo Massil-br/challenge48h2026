@@ -21,6 +21,16 @@ Toutes les données sont des **données ouvertes** (Open Data), téléchargeable
 
 Toutes les données sont les **dernières versions disponibles** au 30 mars 2026.
 
+### Sources complémentaires (BONUS 1)
+
+| # | Dataset | Source | URL | Justification |
+|---|---------|--------|-----|---------------|
+| 9 | Zonage ABC (tension immobilière) | Ministère Transition écologique / data.gouv.fr | [Lien](https://www.data.gouv.fr/datasets/liste-des-communes-selon-le-zonage-abc) | Classification officielle des zones tendues (A bis → C). Les zones tendues corrèlent avec une forte pression sur le stationnement |
+| 10 | IRVE (bornes de recharge VE) | Etalab / data.gouv.fr | [Lien](https://www.data.gouv.fr/datasets/fichier-consolide-des-bornes-de-recharge-pour-vehicules-electriques/) | Densité de bornes = proxy pour l'investissement en infrastructure de mobilité et parking |
+| 11 | Parkings Grand Lyon | Grand Lyon Open Data | [Lien](https://data.grandlyon.com/portail/fr/jeux-de-donnees/parkings-metropole-lyon/info) | Enrichit la BNLS (161 communes) avec les données de la métropole lyonnaise |
+| 12 | Parkings Bordeaux Métropole | Bordeaux Métropole Open Data | [Lien](https://opendata.bordeaux-metropole.fr/explore/dataset/st_park_p/) | Enrichit la BNLS avec les données de la métropole bordelaise |
+| 13 | Parkings Paris | Paris Open Data | [Lien](https://opendata.paris.fr/explore/dataset/stationnement-en-ouvrage/) | Enrichit la BNLS avec les parkings en ouvrage parisiens |
+
 ## Reproduire le pipeline
 
 ### Prérequis
@@ -36,6 +46,9 @@ cd data/
 
 # 1. Nettoyage des données brutes -> data/cleaned/
 python clean_datasets.py
+
+# 1bis. [BONUS] Téléchargement + nettoyage des sources complémentaires
+python bonus_sources.py
 
 # 2. Jointure + scoring + KPIs -> data/output/
 python build_kpis.py
@@ -61,7 +74,13 @@ data/
 │   ├── rnic_t4_2025.csv
 │   ├── ValeursFoncieres-2025-S1.txt
 │   ├── communes_contours_100m.geojson
-│   └── stationnement_bnls.csv
+│   ├── stationnement_bnls.csv
+│   └── bonus/                  # [BONUS] Sources complémentaires
+│       ├── zonage_abc.csv
+│       ├── irve_statique.csv
+│       ├── parkings_lyon.csv
+│       ├── parkings_bordeaux.csv
+│       └── parkings_paris.csv
 ├── cleaned/                    # Données nettoyées (1 CSV par source)
 │   ├── communes.csv            # 34 926 communes, 16 colonnes
 │   ├── motorisation.csv        # 34 848 communes, 5 colonnes
@@ -69,9 +88,12 @@ data/
 │   ├── revenus.csv             # 31 322 communes, 12 colonnes
 │   ├── rnic.csv                # 13 029 communes, 18 colonnes
 │   ├── dvf.csv                 # 30 185 communes, 8 colonnes
-│   └── stationnement.csv       # 161 communes, 7 colonnes
+│   ├── stationnement.csv       # 161 communes, 7 colonnes
+│   ├── zonage_abc.csv          # [BONUS] 34 875 communes, 3 colonnes
+│   ├── irve.csv                # [BONUS] 3 244 communes, 3 colonnes
+│   └── parkings_metropoles.csv # [BONUS] 39 communes, 3 colonnes
 ├── output/                     # Résultats finaux
-│   ├── kpis_par_commune.csv    # Table finale (13 024 communes, 93 colonnes)
+│   ├── kpis_par_commune.csv    # Table finale (13 024 communes, 104 colonnes)
 │   ├── top30_zones.csv         # Top 30 zones prioritaires
 │   ├── communes_enrichies.csv  # Toutes les communes (34 926)
 │   ├── communes_scored.geojson # GeoJSON enrichi pour le dashboard
@@ -82,6 +104,7 @@ data/
 │   ├── distribution_score.png
 │   └── top15_departements.png
 ├── clean_datasets.py           # Script de nettoyage
+├── bonus_sources.py            # [BONUS] Téléchargement + nettoyage sources complémentaires
 ├── build_kpis.py               # Script de jointure + scoring
 ├── build_visualizations.py     # Script de visualisations
 ├── build_geojson.py            # Script GeoJSON enrichi
@@ -95,19 +118,23 @@ data/
 
 ### KPI 1 : Score de potentiel (0-100)
 
-Score composite par commune, calculé comme la moyenne pondérée de 7 facteurs normalisés (min-max) :
+Score composite par commune, calculé comme la moyenne pondérée de **9 facteurs** normalisés (min-max) :
 
 | Facteur | Poids | Source | Justification |
 |---------|-------|--------|---------------|
-| Densité de copropriétés (copro/km²) | 20% | RNIC | Concentration des cibles commerciales |
-| Taux de ménages sans garage | 20% | INSEE Logements | Demande latente de stationnement |
-| Part logements collectifs | 15% | INSEE Logements | Parc adapté au modèle ParkShare |
-| Lots parking / 1000 hab | 15% | RNIC | Offre partageable existante |
-| Taux de motorisation | 10% | INSEE | Besoin de stationnement |
-| Densité de population | 10% | INSEE | Tension urbaine |
-| Part copro avec parking | 10% | RNIC | Infrastructure parking en copropriété |
+| Densité de copropriétés (copro/km²) | 17% | RNIC | Concentration des cibles commerciales |
+| Taux de ménages sans garage | 17% | INSEE Logements | Demande latente de stationnement |
+| Part logements collectifs | 12% | INSEE Logements | Parc adapté au modèle ParkShare |
+| Lots parking / 1000 hab | 12% | RNIC | Offre partageable existante |
+| **Tension immobilière (zonage ABC)** | **10%** | **BONUS : data.gouv.fr** | **Zones tendues = forte demande de parking** |
+| Taux de motorisation | 8% | INSEE | Besoin de stationnement |
+| Densité de population | 8% | INSEE | Tension urbaine |
+| Part copro avec parking | 8% | RNIC | Infrastructure parking en copropriété |
+| **Infrastructure recharge VE** | **8%** | **BONUS : IRVE data.gouv.fr** | **Proxy investissement mobilité/parking** |
 
 La normalisation utilise les percentiles 1% et 99% pour être robuste aux outliers.
+
+> **Note BONUS 1** : Les sources complémentaires (zonage ABC, IRVE, parkings métropoles) enrichissent l'analyse avec 2 nouvelles dimensions dans le scoring et améliorent la couverture du stationnement public. Le scoring passe de 7 à 9 facteurs, avec les poids redistribués proportionnellement.
 
 ### KPI 2 : Classement Top N zones
 
@@ -115,11 +142,11 @@ Communes classées par score de potentiel décroissant. Top 5 :
 
 | Rang | Commune | Département | Score |
 |------|---------|-------------|-------|
-| 1 | Ambilly | Haute-Savoie | 75.3 |
-| 2 | Le Chesnay-Rocquencourt | Yvelines | 70.9 |
-| 3 | Évian-les-Bains | Haute-Savoie | 70.8 |
-| 4 | Chamalières | Puy-de-Dôme | 70.6 |
-| 5 | Beaulieu-sur-Mer | Alpes-Maritimes | 70.5 |
+| 1 | Ambilly | Haute-Savoie | 69.0 |
+| 2 | Le Chesnay-Rocquencourt | Yvelines | 68.7 |
+| 3 | Beaulieu-sur-Mer | Alpes-Maritimes | 67.8 |
+| 4 | Le Plessis-Robinson | Hauts-de-Seine | 66.6 |
+| 5 | Annemasse | Haute-Savoie | 65.6 |
 
 ### KPI 3 : Indice de tension stationnement
 
