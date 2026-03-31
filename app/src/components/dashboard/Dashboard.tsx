@@ -6,6 +6,7 @@ import Filters from "./Filters";
 import ZoneMap from "./ZoneMap";
 import ZoneRanking from "./ZoneRanking";
 import DataTable from "./DataTable";
+import Charts from "./Charts";
 import Loader from "@/components/ui/Loader";
 import type { TransformedDataEntry, DashboardKpis, DataFilters } from "@/types";
 
@@ -127,6 +128,7 @@ export default function Dashboard() {
                 <ZoneRanking data={filteredData} />
               </div>
             </div>
+            <Charts data={filteredData} />
             <DataTable />
           </>
         )}

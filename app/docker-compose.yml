@@ -1,17 +1,20 @@
+# ============================================================
+# DEV ONLY — Pour la production, utiliser ../infra/docker-compose.yml
+# ============================================================
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: parkshare
-      POSTGRES_PASSWORD: P4rk$hare_2026!
-      POSTGRES_DB: parkshare
+      POSTGRES_USER: ${POSTGRES_USER:-parkshare}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-parkshare_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-parkshare}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U parkshare"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-parkshare}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -24,7 +27,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: "postgresql://parkshare:P4rk$hare_2026!@db:5432/parkshare?schema=public"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-parkshare}:${POSTGRES_PASSWORD:-parkshare_dev}@db:5432/${POSTGRES_DB:-parkshare}?schema=public"
     volumes:
       - ../data:/data:ro
     depends_on:
