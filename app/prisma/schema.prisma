@@ -50,23 +50,21 @@ model TransformedData {
   @@map("transformed_data")
 }
 
-/// KPIs agrégés par région/département — métriques précalculées pour le dashboard
-model KpiAggregate {
-  id                     String   @id @default(cuid())
-  scope                  String
-  scopeValue             String   @map("scope_value")
-  totalCommunes          Int      @map("total_communes")
-  avgScore               Float    @map("avg_score")
-  maxScore               Float    @map("max_score")
-  minScore               Float    @map("min_score")
-  totalCoproprietes      Float    @map("total_coproprietes")
-  totalLotsStationnement Float    @map("total_lots_stationnement")
-  avgTensionStationnement Float   @map("avg_tension_stationnement")
-  avgDensiteOpportunite  Float    @map("avg_densite_opportunite")
-  topCommuneNom          String?  @map("top_commune_nom")
-  topCommuneScore        Float?   @map("top_commune_score")
-  createdAt              DateTime @default(now()) @map("created_at")
+/// KPIs agrégés prêts à l'affichage — scores par zone, classements et indicateurs clés
+model KpiData {
+  id                         String   @id @default(cuid())
+  label                      String   @unique
+  totalCommunes              Int      @map("total_communes")
+  avgScore                   Float    @map("avg_score")
+  totalCoproprietes          Int      @map("total_coproprietes")
+  totalLotsStationnement     Int      @map("total_lots_stationnement")
+  avgTensionStationnement    Float    @map("avg_tension_stationnement")
+  avgDensiteOpportunite      Float    @map("avg_densite_opportunite")
+  topCommuneNom              String?  @map("top_commune_nom")
+  topCommuneDep              String?  @map("top_commune_dep")
+  topCommuneScore            Float?   @map("top_commune_score")
+  createdAt                  DateTime @default(now()) @map("created_at")
+  updatedAt                  DateTime @updatedAt @map("updated_at")
 
-  @@unique([scope, scopeValue])
-  @@map("kpi_aggregates")
+  @@map("kpi_data")
 }

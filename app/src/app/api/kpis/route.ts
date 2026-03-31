@@ -2,20 +2,31 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import type { ApiResponse, DashboardKpis } from "@/types";
 
-/** GET — KPIs agrégés temps réel depuis les données transformées */
+/** GET — KPIs agrégés depuis la table kpi_data (pré-calculés au seed) */
 export async function GET(): Promise<NextResponse<ApiResponse<DashboardKpis>>> {
   try {
+    const cached = await prisma.kpiData.findUnique({ where: { label: "global" } });
+
+    if (cached) {
+      const kpis: DashboardKpis = {
+        totalCommunes: cached.totalCommunes,
+        avgScore: cached.avgScore,
+        totalCoproprietes: cached.totalCoproprietes,
+        totalLotsStationnement: cached.totalLotsStationnement,
+        avgTensionStationnement: cached.avgTensionStationnement,
+        avgDensiteOpportunite: cached.avgDensiteOpportunite,
+        topCommune: cached.topCommuneNom
+          ? { nom: cached.topCommuneNom, depNom: cached.topCommuneDep ?? "", scorePotentiel: cached.topCommuneScore ?? 0 }
+          : null,
+      };
+      return NextResponse.json({ success: true, data: kpis });
+    }
+
+    // Fallback: calcul à la volée si la table KPI n'est pas encore peuplée
     const [aggregation, topCommune, totalCommunes] = await Promise.all([
       prisma.transformedData.aggregate({
-        _avg: {
-          scorePotentiel: true,
-          indiceTensionStationnement: true,
-          densiteOpportunite: true,
-        },
-        _sum: {
-          nbCoproprietes: true,
-          totalLotsStationnement: true,
-        },
+        _avg: { scorePotentiel: true, indiceTensionStationnement: true, densiteOpportunite: true },
+        _sum: { nbCoproprietes: true, totalLotsStationnement: true },
       }),
       prisma.transformedData.findFirst({
         orderBy: { scorePotentiel: "desc" },
