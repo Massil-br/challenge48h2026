@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-parkshare}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-parkshare_dev}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-parkshare}
     ports:
       - "5432:5432"
