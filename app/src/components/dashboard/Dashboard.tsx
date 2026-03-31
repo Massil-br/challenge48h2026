@@ -17,8 +17,13 @@ function applyFilters(data: TransformedDataEntry[], filters: DataFilters): Trans
   if (filters.region) result = result.filter((d) => d.regNom === filters.region);
   if (filters.departement) result = result.filter((d) => d.depNom === filters.departement);
   if (filters.grilleTexte) result = result.filter((d) => d.grilleTexte === filters.grilleTexte);
+  if (filters.zoneAbc) result = result.filter((d) => d.zoneAbc === filters.zoneAbc);
   if (filters.scoreMin !== undefined) result = result.filter((d) => d.scorePotentiel >= filters.scoreMin!);
   if (filters.scoreMax !== undefined) result = result.filter((d) => d.scorePotentiel <= filters.scoreMax!);
+  if (filters.populationMin !== undefined) result = result.filter((d) => d.population >= filters.populationMin!);
+  if (filters.populationMax !== undefined) result = result.filter((d) => d.population <= filters.populationMax!);
+  if (filters.tensionMin !== undefined) result = result.filter((d) => d.indiceTensionStationnement >= filters.tensionMin!);
+  if (filters.tensionMax !== undefined) result = result.filter((d) => d.indiceTensionStationnement <= filters.tensionMax!);
 
   const key = filters.sortBy ?? "scorePotentiel";
   const dir = filters.sortOrder === "asc" ? 1 : -1;

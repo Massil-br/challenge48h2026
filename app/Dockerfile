@@ -25,5 +25,6 @@ RUN npm ci --omit=dev --ignore-scripts
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV DATA_CSV_PATH="/data/output/kpis_par_commune.csv"
 
 CMD ["sh", "-c", "npx prisma db push && npm start"]

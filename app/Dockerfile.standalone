@@ -1,0 +1,43 @@
+# =============================================================================
+# Dockerfile STANDALONE — Image autonome avec données intégrées
+# =============================================================================
+# Utiliser ce Dockerfile pour un déploiement sans montage de volume.
+# Les données CSV sont copiées directement dans l'image.
+#
+# Build: docker build -f Dockerfile.standalone -t parkshare-standalone ..
+# Run:   docker run -e DATABASE_URL="..." -p 3000:3000 parkshare-standalone
+# =============================================================================
+
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY app/package*.json ./
+RUN npm ci --ignore-scripts
+COPY app/prisma ./prisma/
+COPY app/prisma.config.ts ./
+RUN npx prisma generate
+COPY app/ .
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/next.config.ts ./
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
+COPY --from=builder /app/src/generated ./src/generated
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next ./.next
+
+# Copie des données CSV dans l'image
+COPY data/output/kpis_par_commune.csv /data/output/kpis_par_commune.csv
+
+RUN npm ci --omit=dev --ignore-scripts
+
+EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+ENV DATA_CSV_PATH="/data/output/kpis_par_commune.csv"
+
+CMD ["sh", "-c", "npx prisma db push && npm start"]

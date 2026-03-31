@@ -1,9 +1,11 @@
-import { readFileSync } from "fs";
-import { join } from "path";
+import { readFileSync, existsSync } from "fs";
+import { join, isAbsolute } from "path";
 
-/**
- * Parse une ligne CSV en respectant les champs entre guillemets.
- */
+function resolvePath(pathOrRelative: string): string {
+  if (isAbsolute(pathOrRelative)) return pathOrRelative;
+  return join(/* turbopackIgnore: true */ process.cwd(), pathOrRelative);
+}
+
 function parseRow(line: string): string[] {
   const fields: string[] = [];
   let current = "";
@@ -35,12 +37,14 @@ function parseRow(line: string): string[] {
   return fields;
 }
 
-/**
- * Parse un fichier CSV situé relativement à la racine du projet.
- * Gère les champs entre guillemets contenant des virgules.
- */
-export function parseCsv(relativePath: string): Record<string, string>[] {
-  const fullPath = join(/* turbopackIgnore: true */ process.cwd(), relativePath);
+export function parseCsv(pathOrRelative: string): Record<string, string>[] {
+  const fullPath = resolvePath(pathOrRelative);
+  
+  if (!existsSync(fullPath)) {
+    console.error(`CSV not found: ${fullPath}`);
+    return [];
+  }
+
   const content = readFileSync(fullPath, "utf-8");
   const lines = content.split("\n").filter((l) => l.trim().length > 0);
   if (lines.length < 2) return [];

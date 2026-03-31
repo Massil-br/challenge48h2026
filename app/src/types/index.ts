@@ -27,6 +27,10 @@ export interface TransformedDataEntry {
   indiceTensionStationnement: number;
   densiteOpportunite: number;
   grilleTexte: string | null;
+  zoneAbc: string | null;
+  tensionImmobiliere: number | null;
+  scoreInfraRecharge: number | null;
+  scoreTensionImmo: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,6 +51,11 @@ export interface DataFilters {
   scoreMin?: number;
   scoreMax?: number;
   grilleTexte?: string;
+  zoneAbc?: string;
+  populationMin?: number;
+  populationMax?: number;
+  tensionMin?: number;
+  tensionMax?: number;
   sortBy?: "scorePotentiel" | "nom" | "population" | "indiceTensionStationnement" | "densiteOpportunite";
   sortOrder?: "asc" | "desc";
 }
